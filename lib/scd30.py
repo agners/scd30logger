@@ -61,9 +61,38 @@ class SCD30:
             raise self.NotFoundException
 
     def get_firmware_version(self):
-            ver = self.__read_bytes(self.GET_FIRMWARE_VER, 3)
-            self.__check_crc(ver)
-            return struct.unpack('BB', ver)
+        ver = self.__read_bytes(self.GET_FIRMWARE_VER, 3)
+        self.__check_crc(ver)
+        return struct.unpack('BB', ver)
+
+    def read_measurement(self):
+        measurement = self.__read_bytes(self.READ_MEASUREMENT, 18)
+        for i in range(0, len(measurement), 3):
+            self.__check_crc(measurement[i:i+3])
+
+        value = measurement[0:]
+        co2 = struct.unpack('>f', value[0:2] + value[3:5])
+        value = measurement[6:]
+        temperature = struct.unpack('>f', value[0:2] + value[3:5])
+        value = measurement[12:]
+        relh = struct.unpack('>f', value[0:2] + value[3:5])
+        return (co2, temperature, relh)
+
+    def get_status_ready(self):
+        ready = self.__read_bytes(self.GET_STATUS_READY, 3)
+        self.__check_crc(ready)
+        return struct.unpack('>H', ready)
+
+    def get_measurement_interval(self):
+        bint = self.__read_bytes(self.SET_MEASURE_INTERVAL, 3)
+        self.__check_crc(bint)
+        return struct.unpack('>H', bint)
+
+    def set_measurement_interval(self, interval):
+        bint = struct.pack('>H', interval)
+        crc = self.__crc(bint[0], bint[1])
+        data = bint + bytes([crc])
+        self.i2c.writeto_mem(self.addr, self.SET_MEASURE_INTERVAL, data, addrsize=16)
 
     def __read_bytes(self, cmd, count):
         return self.i2c.readfrom_mem(self.addr, cmd, count, addrsize=16)
